@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Менеджер задач</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="app-header">
+      <h1>📋 Менеджер задач</h1>
+      <p class="subtitle">Приоритеты, дедлайны и порядок выполнения</p>
+    </header>
+
+    <!-- Панель данных -->
+    <div class="data-bar">
+      <button class="btn btn-soft" id="export-btn" title="Скачать все задачи в файл tasks.json">💾 Сохранить JSON</button>
+      <button class="btn btn-soft" id="import-btn" title="Загрузить задачи из файла tasks.json">⬆ Импорт JSON</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden />
+    </div>
+
+    <!-- Форма добавления -->
+    <form id="task-form" class="card task-form">
+      <div class="form-row">
+        <input
+          type="text"
+          id="title"
+          class="input"
+          placeholder="Что нужно сделать?"
+          maxlength="200"
+          autocomplete="off"
+          required
+        />
+      </div>
+      <div class="form-row">
+        <textarea
+          id="description"
+          class="input"
+          placeholder="Описание (необязательно)"
+          rows="2"
+          maxlength="1000"
+        ></textarea>
+      </div>
+      <div class="form-row form-row--inline">
+        <label class="field">
+          <span class="field-label">Приоритет</span>
+          <select id="priority" class="input">
+            <option value="low">Низкий</option>
+            <option value="medium" selected>Средний</option>
+            <option value="high">Высокий</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Дедлайн <span class="field-optional">· необязательно</span></span>
+          <input type="datetime-local" id="deadline" class="input" />
+        </label>
+        <button type="submit" class="btn btn-primary add-btn">＋ Добавить</button>
+      </div>
+    </form>
+
+    <!-- Панель управления -->
+    <div class="toolbar">
+      <div class="filters" id="filters">
+        <button class="chip is-active" data-filter="all">Все</button>
+        <button class="chip" data-filter="active">Активные</button>
+        <button class="chip" data-filter="done">Выполненные</button>
+      </div>
+      <div class="counter" id="counter">Осталось: 0</div>
+    </div>
+
+    <!-- Список задач -->
+    <ul id="task-list" class="task-list"></ul>
+
+    <div id="empty-state" class="empty-state" hidden>
+      <p>Пока нет задач. Добавьте первую сверху ☝️</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

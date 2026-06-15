@@ -1,0 +1,9 @@
+{
+  "name": "task-manager-web",
+  "version": "1.0.0",
+  "description": "Менеджер задач для деплоя на Vercel. Данные в Upstash Redis (JSON).",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
