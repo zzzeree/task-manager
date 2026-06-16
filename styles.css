@@ -370,6 +370,178 @@ textarea.input { resize: vertical; }
   animation: slide-in 0.2s ease;
 }
 
+/* Исполнители */
+.people-panel { padding: 16px 18px; margin-bottom: 20px; }
+.people-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.people-title { font-size: 15px; font-weight: 800; }
+.people-hint { font-size: 12px; color: var(--muted); }
+.people-empty { font-size: 14px; color: var(--muted); }
+.people-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.person-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.person-chip.is-active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,110,245,.15); }
+.person-chip button { background: transparent; border: none; cursor: pointer; font-family: inherit; font-size: 14px; }
+.person-name {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 12px; font-weight: 700; color: var(--text);
+}
+.person-chip.is-active .person-name { color: var(--accent-dark); }
+.person-count {
+  font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #eef1fb; color: var(--muted); border-radius: 999px;
+}
+.person-chip.is-active .person-count { background: var(--accent); color: #fff; }
+.person-edit, .person-del { padding: 7px 9px; color: var(--muted); font-size: 13px; }
+.person-edit:hover { background: #eef1fb; color: var(--accent); }
+.person-del:hover { background: var(--red-bg); color: var(--red); }
+.people-add { display: flex; gap: 10px; }
+.people-add .input { flex: 1; }
+.people-add .btn { white-space: nowrap; }
+
+/* Выпадающий выбор нескольких исполнителей (как у «Приоритета») */
+.multiselect { position: relative; }
+.ms-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.ms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-label.is-placeholder { color: #a6afc2; font-weight: 400; }
+.ms-arrow { color: var(--muted); font-size: 12px; flex-shrink: 0; transition: transform .15s; }
+.multiselect.open .ms-arrow { transform: rotate(180deg); }
+.ms-panel {
+  margin-top: 6px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Перекрывает display:flex, чтобы атрибут hidden реально прятал список */
+.ms-panel[hidden] { display: none; }
+.ms-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.ms-option:hover { background: #f1f3fb; }
+.ms-check {
+  width: 19px;
+  height: 19px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: transparent;
+  flex-shrink: 0;
+}
+.ms-option.is-on .ms-check { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ms-empty { padding: 10px; font-size: 13px; color: var(--muted); }
+
+/* Бейдж исполнителя на карточке (кликабельный — фильтр) */
+.badge-assignee {
+  background: #eef1fb;
+  color: var(--accent-dark);
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.badge-assignee:hover { background: var(--accent); color: #fff; }
+
+/* Модальные окна */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 35, 51, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 200;
+  animation: fade-in .15s ease;
+}
+/* Важно: перекрывает display:flex, чтобы атрибут hidden реально прятал окно */
+.modal-overlay[hidden] { display: none; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(28, 35, 51, 0.3);
+  width: 100%;
+  max-width: 540px;
+  padding: 24px;
+  animation: slide-in .2s ease;
+}
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 9px;
+  border-radius: 9px;
+}
+.modal-close:hover { background: #eef1fb; color: var(--text); }
+.modal-title { margin: 0 32px 6px 0; font-size: 20px; font-weight: 800; }
+.modal-hint { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Баннер активного фильтра по исполнителю */
+.assignee-banner {
+  margin: -4px 0 14px;
+  font-size: 14px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.assignee-banner b { color: var(--text); }
+.assignee-banner button {
+  background: #fff; border: 1.5px solid var(--border); color: var(--accent-dark);
+  border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 700;
+  font-family: inherit; cursor: pointer;
+}
+.assignee-banner button:hover { border-color: var(--accent); color: var(--accent); }
+
 @media (max-width: 540px) {
   .container { padding: 28px 14px 56px; }
   .app-header h1 { font-size: 27px; }
@@ -377,4 +549,5 @@ textarea.input { resize: vertical; }
   .add-btn { width: 100%; }
   .toolbar { flex-direction: column; align-items: stretch; }
   .filters { justify-content: space-between; }
+  .people-add { flex-direction: column; }
 }

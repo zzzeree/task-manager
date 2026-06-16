@@ -10,37 +10,36 @@
   <div class="container">
     <header class="app-header">
       <h1>📋 Менеджер задач</h1>
-      <p class="subtitle">Приоритеты, дедлайны и порядок выполнения</p>
+      <p class="subtitle">Приоритеты, дедлайны и кто чем занимается</p>
     </header>
 
     <!-- Панель данных -->
     <div class="data-bar">
-      <button class="btn btn-soft" id="export-btn" title="Скачать все задачи в файл tasks.json">💾 Сохранить JSON</button>
-      <button class="btn btn-soft" id="import-btn" title="Загрузить задачи из файла tasks.json">⬆ Импорт JSON</button>
+      <button class="btn btn-soft" id="manage-people-btn" title="Добавить и изменить исполнителей">👥 Исполнители</button>
+      <button class="btn btn-soft" id="export-btn" title="Скачать все данные в файл tasks.json">💾 Сохранить JSON</button>
+      <button class="btn btn-soft" id="import-btn" title="Загрузить данные из файла tasks.json">⬆ Импорт JSON</button>
       <input type="file" id="import-file" accept="application/json,.json" hidden />
     </div>
 
-    <!-- Форма добавления -->
+    <!-- Форма добавления задачи -->
     <form id="task-form" class="card task-form">
       <div class="form-row">
-        <input
-          type="text"
-          id="title"
-          class="input"
-          placeholder="Что нужно сделать?"
-          maxlength="200"
-          autocomplete="off"
-          required
-        />
+        <input type="text" id="title" class="input" placeholder="Что нужно сделать?" maxlength="200" autocomplete="off" required />
       </div>
       <div class="form-row">
-        <textarea
-          id="description"
-          class="input"
-          placeholder="Описание (необязательно)"
-          rows="2"
-          maxlength="1000"
-        ></textarea>
+        <textarea id="description" class="input" placeholder="Описание (необязательно)" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <span class="field-label">Исполнители <span class="field-optional">· можно несколько</span></span>
+          <div class="multiselect" id="assignee-ms">
+            <button type="button" class="input ms-trigger" id="assignee-trigger">
+              <span class="ms-label is-placeholder" id="assignee-label">Не выбрано</span>
+              <span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-panel" id="assignee-panel" hidden></div>
+          </div>
+        </div>
       </div>
       <div class="form-row form-row--inline">
         <label class="field">
@@ -69,6 +68,9 @@
       <div class="counter" id="counter">Осталось: 0</div>
     </div>
 
+    <!-- Активный фильтр по исполнителю -->
+    <div class="assignee-banner" id="assignee-banner" hidden></div>
+
     <!-- Список задач -->
     <ul id="task-list" class="task-list"></ul>
 
@@ -78,6 +80,67 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
+
+  <!-- Модальное окно: редактирование задачи -->
+  <div class="modal-overlay" id="edit-modal" hidden>
+    <div class="modal">
+      <button class="modal-close" type="button" id="edit-close-x" title="Закрыть">×</button>
+      <h3 class="modal-title">Редактировать задачу</h3>
+      <div class="form-row">
+        <input type="text" id="edit-title" class="input" placeholder="Название" maxlength="200" />
+      </div>
+      <div class="form-row">
+        <textarea id="edit-description" class="input" placeholder="Описание (необязательно)" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="form-row form-row--inline">
+        <label class="field">
+          <span class="field-label">Приоритет</span>
+          <select id="edit-priority" class="input">
+            <option value="low">Низкий</option>
+            <option value="medium">Средний</option>
+            <option value="high">Высокий</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Дедлайн</span>
+          <input type="datetime-local" id="edit-deadline" class="input" />
+        </label>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <span class="field-label">Исполнители</span>
+          <div class="multiselect" id="edit-assignee-ms">
+            <button type="button" class="input ms-trigger" id="edit-assignee-trigger">
+              <span class="ms-label is-placeholder" id="edit-assignee-label">Не выбрано</span>
+              <span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-panel" id="edit-assignee-panel" hidden></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-soft" type="button" id="edit-cancel">Отмена</button>
+        <button class="btn btn-primary" type="button" id="edit-save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно: исполнители -->
+  <div class="modal-overlay" id="people-modal" hidden>
+    <div class="modal">
+      <button class="modal-close" type="button" id="people-close-x" title="Закрыть">×</button>
+      <h3 class="modal-title">👥 Исполнители</h3>
+      <p class="modal-hint">Имена доступны при выборе исполнителя задачи.</p>
+      <div class="people-list" id="people-list"></div>
+      <form class="people-add" id="people-form">
+        <input type="text" id="person-name" class="input" placeholder="Имя исполнителя" maxlength="40" autocomplete="off" />
+        <button type="submit" class="btn btn-primary">＋ Добавить</button>
+      </form>
+      <div class="modal-actions">
+        <button class="btn btn-soft" type="button" id="people-close">Готово</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
