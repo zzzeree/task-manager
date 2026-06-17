@@ -23,7 +23,7 @@
         <button class="ghost-btn" id="export-btn" title="Сохранить в файл JSON">💾</button>
         <button class="ghost-btn" id="import-btn" title="Загрузить из файла JSON">⬆</button>
         <input type="file" id="import-file" accept="application/json,.json" hidden />
-        <button class="btn btn-primary add-task-btn" id="add-task-btn">＋ Создать</button>
+        <button class="btn btn-primary add-task-btn" id="add-task-btn">＋<span> Добавить задачу</span></button>
       </div>
     </header>
 
@@ -132,6 +132,7 @@
       <div class="people-list" id="people-list"></div>
       <form class="people-add" id="people-form">
         <input type="text" id="person-name" class="input" placeholder="Имя участника" maxlength="40" autocomplete="off" />
+        <input type="text" id="person-pass" class="input" placeholder="Пароль кабинета" maxlength="40" autocomplete="off" />
         <button type="submit" class="btn btn-primary">＋ Добавить</button>
       </form>
       <div class="modal-actions">
@@ -195,6 +196,7 @@
       <h3 class="modal-title" id="day-title">День</h3>
       <div id="day-body"></div>
       <div class="modal-actions">
+        <button class="btn btn-primary" type="button" id="day-add-task">＋ Добавить задачу</button>
         <span class="spacer"></span>
         <button class="btn btn-soft" type="button" id="day-close">Закрыть</button>
       </div>

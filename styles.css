@@ -374,8 +374,8 @@ textarea.input { resize: vertical; }
 .person-row button:hover { background: #eef0f3; color: var(--text); }
 .person-row button.del:hover { background: var(--red-bg); color: var(--red); }
 .people-empty { font-size: 13.5px; color: var(--muted); }
-.people-add { display: flex; gap: 9px; }
-.people-add .input { flex: 1; }
+.people-add { display: flex; gap: 9px; flex-wrap: wrap; }
+.people-add .input { flex: 1; min-width: 130px; }
 
 /* ---------- Личный режим (селектор в шапке) ---------- */
 .person-view {
@@ -439,7 +439,10 @@ textarea.input { resize: vertical; }
 /* ---------- Заметки ---------- */
 .notes-area { width: 100%; min-height: 110px; border: 1px solid var(--border-2); border-radius: var(--radius-xs); padding: 11px; font-family: inherit; font-size: 14px; resize: vertical; color: var(--text); }
 .notes-area:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(90,99,240,0.13); }
-.notes-saved { font-size: 12px; color: var(--green); font-weight: 600; margin-top: 6px; min-height: 16px; }
+.notes-saved { font-size: 12px; color: var(--muted); font-weight: 600; min-height: 16px; }
+.notes-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.notes-save-btn { padding: 7px 16px; font-size: 13px; white-space: nowrap; }
+.pr-lock { font-size: 11px; }
 
 /* ---------- Календарь: созвоны ---------- */
 .cal-pill.meeting { background: #e7f7f3; color: #0f8a6e; }
@@ -468,6 +471,7 @@ textarea.input { resize: vertical; }
 .cal-topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
 .cal-title-group { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .cal-monthnav { display: flex; align-items: center; gap: 8px; }
+.cal-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cal-month-lbl { font-size: 18px; font-weight: 800; text-transform: capitalize; min-width: 150px; text-align: center; }
 .avatar.xs { width: 16px; height: 16px; font-size: 8px; border-width: 1px; }
 .cal-pill { display: flex; align-items: center; gap: 3px; }
@@ -476,6 +480,12 @@ textarea.input { resize: vertical; }
 .cal-pill .cal-tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-grid { gap: 7px; }
 .cal-cell { height: 116px; }
+/* Календарь — шире, чтобы всё было видно */
+.view-root.wide { max-width: 1320px; }
+.view-root.wide .cal-cell { height: 128px; }
+.view-root.wide .cal-pill { font-size: 11px; }
+/* Шапка переносится, а не сжимается в кашу */
+.appbar { flex-wrap: wrap; row-gap: 8px; }
 
 /* ---------- Конфетти ---------- */
 .confetti-piece { position: fixed; width: 9px; height: 14px; z-index: 500; pointer-events: none; top: -20px; }
@@ -488,17 +498,30 @@ textarea.input { resize: vertical; }
   .team-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 620px) {
-  .appbar { gap: 10px; padding: 10px 14px; }
+  .appbar { gap: 8px; padding: 9px 12px; }
+  .brand { font-size: 15px; }
   .nav { display: none; }
-  .nav-mobile { display: flex; gap: 4px; overflow-x: auto; padding: 8px 14px; background: #fff; border-bottom: 1px solid var(--border); position: sticky; top: 57px; z-index: 90; }
+  .nav-mobile { display: flex; gap: 4px; overflow-x: auto; padding: 7px 12px; background: #fff; border-bottom: 1px solid var(--border); -webkit-overflow-scrolling: touch; }
   .nav-mobile .nav-btn { white-space: nowrap; }
-  .view-root { padding: 16px 14px 80px; }
+  .appbar-actions { gap: 5px; }
+  #export-btn, #import-btn { display: none; }
+  .person-view { max-width: 116px; font-size: 12px; padding: 7px 8px; }
+  .view-root { padding: 16px 13px 90px; }
   .board { grid-template-columns: 1fr; }
   .team-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .add-task-btn span { display: none; }
   .cal-grid { gap: 3px; }
-  .cal-cell { height: 72px; padding: 4px; }
+  .cal-cell, .view-root.wide .cal-cell { height: 70px; padding: 4px; }
   .cal-pill { display: none; }
   .cal-cell::after { content: attr(data-count); font-size: 10px; color: var(--accent); font-weight: 700; }
+  .cal-month-lbl { min-width: 110px; font-size: 16px; }
+  .cal-topbar { gap: 8px; }
+  .reminders { left: 12px; right: 12px; max-width: none; top: auto; bottom: 90px; }
+  .modal { padding: 18px; max-height: 92vh; }
+  .sub-row .sr-fields { grid-template-columns: 1fr 1fr; }
+}
+/* Планшеты — средний размер */
+@media (max-width: 760px) {
+  .stat-num { font-size: 24px; }
 }

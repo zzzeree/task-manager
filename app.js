@@ -22,6 +22,8 @@ let tasks = [];
 let history = [];
 let meetings = [];
 let notes = {};             // { personId: текст заметок }
+let settings = {};          // общие настройки (напр. adminPassHash)
+let adminUnlocked = false;  // разблокирован ли экспорт/импорт в этой сессии
 let view = 'dashboard';
 let personView = '';        // личный режим: id исполнителя или ''
 let filters = { q: '', person: '', priority: '', status: '' };
@@ -67,6 +69,7 @@ const els = {
   peopleList: document.getElementById('people-list'),
   peopleForm: document.getElementById('people-form'),
   personName: document.getElementById('person-name'),
+  personPass: document.getElementById('person-pass'),
   peopleClose: document.getElementById('people-close'),
   // личный режим
   personViewSel: document.getElementById('person-view'),
@@ -234,14 +237,15 @@ async function loadData() {
   startReminders();
 }
 function applyData(data) {
-  if (Array.isArray(data)) { people = []; tasks = data; history = []; meetings = []; notes = {}; }
+  if (Array.isArray(data)) { people = []; tasks = data; history = []; meetings = []; notes = {}; settings = {}; }
   else if (data && typeof data === 'object') {
     people = Array.isArray(data.people) ? data.people : [];
     tasks = Array.isArray(data.tasks) ? data.tasks : [];
     history = Array.isArray(data.history) ? data.history : [];
     meetings = Array.isArray(data.meetings) ? data.meetings : [];
     notes = (data.notes && typeof data.notes === 'object') ? data.notes : {};
-  } else { people = []; tasks = []; history = []; meetings = []; notes = {}; }
+    settings = (data.settings && typeof data.settings === 'object') ? data.settings : {};
+  } else { people = []; tasks = []; history = []; meetings = []; notes = {}; settings = {}; }
   // миграции
   people.forEach((p, i) => { if (!p.color) p.color = PALETTE[i % PALETTE.length]; });
   tasks.forEach((t) => {
@@ -258,7 +262,7 @@ function applyData(data) {
 }
 function save() {
   if (OFFLINE) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ people, tasks, history, meetings, notes })); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ people, tasks, history, meetings, notes, settings })); }
     catch (e) { showToast('Не удалось сохранить'); }
     return;
   }
@@ -268,14 +272,15 @@ function save() {
       const res = await fetch('/api/tasks', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ people, tasks, history, meetings, notes }),
+        body: JSON.stringify({ people, tasks, history, meetings, notes, settings }),
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
     } catch (e) { showToast('Ошибка сохранения'); }
   }, 200);
 }
 function logEvent(text) {
-  history.unshift({ id: uid(), ts: new Date().toISOString(), text });
+  const who = personView ? (getPerson(personView) ? getPerson(personView).name : '') : '';
+  history.unshift({ id: uid(), ts: new Date().toISOString(), text, who });
   if (history.length > 80) history.length = 80;
 }
 
@@ -321,6 +326,7 @@ function activeFiltersCount() {
 // ====================== Рендер: каркас ======================
 function render() {
   renderPersonViewSelect();
+  root.className = 'view-root' + (view === 'calendar' ? ' wide' : '');
   [...els.nav.children].forEach((b) => b.classList.toggle('is-active', b.dataset.view === view));
   [...els.navMobile.children].forEach((b) => b.classList.toggle('is-active', b.dataset.view === view));
   if (view === 'board') renderBoard();
@@ -335,7 +341,65 @@ function renderPersonViewSelect() {
     people.map((p) => `<option value="${p.id}"${p.id === cur ? ' selected' : ''}>👤 ${escapeHtml(p.name)}</option>`).join('');
   els.personViewSel.classList.toggle('active', !!personView);
 }
-function setPersonView(id) { personView = id || ''; render(); }
+const unlockedPersons = new Set();
+function hashStr(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return 'h' + h.toString(36);
+}
+function setPersonView(id) {
+  if (id) {
+    const p = getPerson(id);
+    if (p && p.passHash && !unlockedPersons.has(id)) {
+      const entry = prompt(`🔒 Кабинет «${p.name}» защищён паролем.\nВведите пароль:`);
+      if (entry === null) { renderPersonViewSelect(); return; }
+      if (hashStr(entry) !== p.passHash) { showToast('Неверный пароль'); renderPersonViewSelect(); return; }
+      unlockedPersons.add(id);
+    }
+  }
+  personView = id || '';
+  render();
+}
+// Пароль на экспорт/импорт (общий «админ-пароль»)
+function requireAdmin() {
+  if (adminUnlocked) return true;
+  if (!settings.adminPassHash) {
+    const set = prompt('💾 / ⬆ Эти кнопки выгружают и загружают ВСЕ данные.\nЗащитите их паролем — придумайте его (пусто — без защиты):', '');
+    if (set === null) return false;
+    if (set.trim()) { settings.adminPassHash = hashStr(set); save(); showToast('Пароль установлен'); }
+    adminUnlocked = true;
+    return true;
+  }
+  const entry = prompt('🔒 Введите пароль для экспорта/импорта:');
+  if (entry === null) return false;
+  if (hashStr(entry) !== settings.adminPassHash) { showToast('Неверный пароль'); return false; }
+  adminUnlocked = true;
+  return true;
+}
+// Установить / снять / сменить пароль участника
+function setPersonPassword(id) {
+  const p = getPerson(id);
+  if (!p) return;
+  // чтобы сменить/снять пароль — нужно знать текущий
+  if (p.passHash) {
+    const cur = prompt(`🔒 Кабинет «${p.name}» защищён.\nВведите текущий пароль, чтобы изменить его:`);
+    if (cur === null) return;
+    if (hashStr(cur) !== p.passHash) { showToast('Неверный пароль'); return; }
+  }
+  const entry = prompt(`Новый пароль для «${p.name}» (пусто — снять защиту):`, '');
+  if (entry === null) return;
+  if (entry.trim() === '') {
+    delete p.passHash; unlockedPersons.delete(id);
+    logEvent(`Снят пароль кабинета «${p.name}»`);
+    showToast('Пароль снят');
+  } else {
+    p.passHash = hashStr(entry); unlockedPersons.add(id);
+    logEvent(`Изменён пароль кабинета «${p.name}»`);
+    showToast('Пароль установлен');
+  }
+  save();
+  renderPeopleModal();
+}
 function personBannerHtml() {
   if (!personView) return '';
   const p = getPerson(personView);
@@ -438,12 +502,19 @@ function renderDashboard() {
     <div class="panel">
       <div class="panel-title">📝 Мои заметки</div>
       <textarea class="notes-area" id="notes-area" placeholder="Личные заметки: что подготовить, кому написать…">${escapeHtml(notes[personView] || '')}</textarea>
-      <div class="notes-saved" id="notes-saved"></div>
+      <div class="notes-foot">
+        <span class="notes-saved" id="notes-saved"></span>
+        <button class="btn btn-primary notes-save-btn" id="notes-save">Сохранить</button>
+      </div>
     </div>` : '';
 
   const myTasksPanel = personView ? `
     <div class="panel" style="margin-bottom:14px">
       <div class="panel-title">🗂️ Мои задачи (${scope.length})</div>
+      <div class="progress-wrap" style="margin-bottom:14px">
+        <div class="progress-bar"><div class="progress-fill" style="width:${donePct}%"></div></div>
+        <div class="progress-pct">${donePct}%</div>
+      </div>
       ${scope.length
         ? `<div class="task-rows">${[...scope].sort((a, b) => {
             if (isDone(a) !== isDone(b)) return isDone(a) ? 1 : -1;
@@ -463,14 +534,15 @@ function renderDashboard() {
       <div class="stat red"><div class="stat-num">${overdueList.length}</div><div class="stat-label">Просрочено</div></div>
       <div class="stat yellow"><div class="stat-num">${today}</div><div class="stat-label">Дедлайн сегодня</div></div>
     </div>
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-title">${personView ? 'Мой прогресс' : 'Прогресс проекта'}</div>
+    ${personView ? '' : `<div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">Прогресс проекта</div>
       <div class="progress-wrap">
         <div class="progress-bar"><div class="progress-fill" style="width:${donePct}%"></div></div>
         <div class="progress-pct">${donePct}%</div>
       </div>
       <div class="view-sub">${done} из ${total} задач выполнено</div>
-    </div>
+    </div>`}
+    ${myTasksPanel}
     ${overdueWidget}
     <div class="dash-grid">
       <div>
@@ -504,25 +576,32 @@ function renderDashboard() {
           <div class="panel-title">Последние изменения</div>
           ${recent.length ? recent.map((h) => `
             <div class="history-item"><span class="history-dot"></span>
-            <div class="row-main">${escapeHtml(h.text)}</div>
+            <div class="row-main">${h.who ? '<b>' + escapeHtml(h.who) + '</b> · ' : ''}${escapeHtml(h.text)}</div>
             <span class="history-time">${relTime(h.ts)}</span></div>`).join('') : '<div class="empty-hint">Пока нет событий</div>'}
         </div>
       </div>
-    </div>
-    ${myTasksPanel}`;
+    </div>`;
 
   const exitBtn = document.getElementById('exit-person');
   if (exitBtn) exitBtn.onclick = () => setPersonView('');
   const am = document.getElementById('dash-add-meeting');
   if (am) am.onclick = () => openMeetingModal(null);
   const na = document.getElementById('notes-area');
+  const nsave = document.getElementById('notes-save');
   if (na) {
-    let nt = null;
     na.addEventListener('input', () => {
       notes[personView] = na.value;
       const saved = document.getElementById('notes-saved');
-      clearTimeout(nt);
-      nt = setTimeout(() => { save(); if (saved) { saved.textContent = '✓ Сохранено'; setTimeout(() => { if (saved) saved.textContent = ''; }, 1500); } }, 500);
+      if (saved) saved.textContent = '● не сохранено';
+    });
+  }
+  if (nsave) {
+    nsave.addEventListener('click', () => {
+      notes[personView] = na.value;
+      save();
+      const saved = document.getElementById('notes-saved');
+      if (saved) saved.textContent = '✓ Сохранено';
+      showToast('Заметки сохранены');
     });
   }
 }
@@ -689,7 +768,10 @@ function renderCalendar() {
           <button class="cal-nav" id="cal-next">›</button>
         </div>
       </div>
-      <button class="btn btn-soft" id="cal-today">Сегодня</button>
+      <div class="cal-actions">
+        <button class="btn btn-soft" id="cal-today">Сегодня</button>
+        <button class="btn btn-primary" id="cal-add-task">＋ Добавить задачу</button>
+      </div>
     </div>
     <div class="cal-grid">
       ${DOW.map((d) => `<div class="cal-dow">${d}</div>`).join('')}
@@ -698,6 +780,7 @@ function renderCalendar() {
   document.getElementById('cal-prev').onclick = () => { calMonth = new Date(year, month - 1, 1); renderCalendar(); };
   document.getElementById('cal-next').onclick = () => { calMonth = new Date(year, month + 1, 1); renderCalendar(); };
   document.getElementById('cal-today').onclick = () => { calMonth = startOfMonth(new Date()); renderCalendar(); };
+  document.getElementById('cal-add-task').onclick = () => openTaskModal(null);
   const exitBtn = document.getElementById('exit-person');
   if (exitBtn) exitBtn.onclick = () => setPersonView('');
 }
@@ -745,15 +828,15 @@ function wireTeamDnd() {
 }
 
 // ====================== Модалка задачи ======================
-function openTaskModal(id) {
+function openTaskModal(id, prefill) {
   editingId = id || null;
   const t = id ? tasks.find((x) => x.id === id) : null;
   els.tTitle.value = t ? t.title : '';
   els.tDescription.value = t ? (t.description || '') : '';
   els.tStatus.value = t ? statusOf(t) : 'new';
   els.tPriority.value = t ? t.priority : 'medium';
-  els.tDeadline.value = t ? (t.deadline || '') : '';
-  modalAssignees = t ? [...taskAssignees(t)] : [];
+  els.tDeadline.value = t ? (t.deadline || '') : (prefill && prefill.deadline ? prefill.deadline : '');
+  modalAssignees = t ? [...taskAssignees(t)] : (personView ? [personView] : []);
   modalType = t ? (t.type || 'task') : 'task';
   modalLinks = t ? [...(t.links || [])] : [];
   modalFiles = t ? [...(t.files || [])] : [];
@@ -914,8 +997,9 @@ function renderPeopleModal() {
     return `<div class="person-row" data-id="${p.id}" draggable="true">
       <span class="pr-drag" title="Перетащите, чтобы поменять порядок">⠿</span>
       ${avatarHtml(p)}
-      <span class="pr-name">${escapeHtml(p.name)}</span>
+      <span class="pr-name">${escapeHtml(p.name)}${p.passHash ? ' <span class="pr-lock" title="Защищён паролем">🔒</span>' : ''}</span>
       <span class="pr-count">${active} в работе</span>
+      <button data-act="lock" title="${p.passHash ? 'Сменить / снять пароль' : 'Поставить пароль на кабинет'}">${p.passHash ? '🔒' : '🔓'}</button>
       <button data-act="edit" title="Переименовать">✎</button>
       <button class="del" data-act="del" title="Удалить">🗑</button>
     </div>`;
@@ -932,8 +1016,12 @@ function addPerson(e) {
   e.preventDefault();
   const name = els.personName.value.trim();
   if (!name) return;
-  people.push({ id: uid(), name, color: PALETTE[people.length % PALETTE.length] });
+  const pass = els.personPass.value.trim();
+  const person = { id: uid(), name, color: PALETTE[people.length % PALETTE.length] };
+  if (pass) person.passHash = hashStr(pass);
+  people.push(person);
   els.personName.value = '';
+  els.personPass.value = '';
   logEvent(`Добавлен участник ${name}`);
   save(); renderPeopleModal(); renderModalAssignees();
 }
@@ -1028,7 +1116,9 @@ function renderMeetingParts() {
 }
 
 // ====================== Окно дня (все события даты) ======================
+let dayModalDate = '';
 function openDayModal(dateStr) {
+  dayModalDate = dateStr;
   const dayTasks = tasksForPerson()
     .filter((t) => t.deadline && dateKey(new Date(t.deadline)) === dateStr)
     .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
@@ -1187,8 +1277,8 @@ els.navMobile.innerHTML = VIEWS.map((v) => `<button class="nav-btn" data-view="$
 
 els.addTaskBtn.addEventListener('click', () => openTaskModal(null));
 els.managePeopleBtn.addEventListener('click', openPeopleModal);
-els.exportBtn.addEventListener('click', exportJson);
-els.importBtn.addEventListener('click', () => els.importFile.click());
+els.exportBtn.addEventListener('click', () => { if (requireAdmin()) exportJson(); });
+els.importBtn.addEventListener('click', () => { if (requireAdmin()) els.importFile.click(); });
 els.importFile.addEventListener('change', (e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; });
 
 // делегирование кликов в контенте: открыть задачу
@@ -1237,6 +1327,7 @@ els.peopleList.addEventListener('click', (e) => {
   const row = btn.closest('.person-row'); if (!row) return;
   if (btn.dataset.act === 'edit') renamePerson(row.dataset.id);
   else if (btn.dataset.act === 'del') deletePerson(row.dataset.id);
+  else if (btn.dataset.act === 'lock') setPersonPassword(row.dataset.id);
 });
 
 // личный режим
@@ -1299,6 +1390,11 @@ els.dayBody.addEventListener('click', (e) => {
 });
 els.dayClose.addEventListener('click', closeDayModal);
 document.getElementById('day-close-x').addEventListener('click', closeDayModal);
+document.getElementById('day-add-task').addEventListener('click', () => {
+  const d = dayModalDate;
+  closeDayModal();
+  openTaskModal(null, d ? { deadline: d + 'T18:00' } : null);
+});
 els.dayModal.addEventListener('click', (e) => { if (e.target === els.dayModal) closeDayModal(); });
 
 document.addEventListener('click', closeMsPanel);
