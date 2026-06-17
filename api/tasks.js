@@ -16,12 +16,19 @@ function validTasks(tasks) {
   return Array.isArray(tasks) && tasks.every((t) => t && typeof t === 'object' && typeof t.id === 'string');
 }
 function normalize(data) {
-  if (Array.isArray(data)) return validTasks(data) ? { people: [], tasks: data } : null;
+  if (Array.isArray(data)) {
+    return validTasks(data) ? { people: [], tasks: data, history: [], meetings: [], notes: {} } : null;
+  }
   if (data && typeof data === 'object') {
     const people = Array.isArray(data.people) ? data.people : [];
     if (!validTasks(data.tasks)) return null;
     if (!people.every((p) => p && typeof p === 'object' && typeof p.id === 'string')) return null;
-    return { people, tasks: data.tasks };
+    return {
+      people, tasks: data.tasks,
+      history: Array.isArray(data.history) ? data.history : [],
+      meetings: Array.isArray(data.meetings) ? data.meetings : [],
+      notes: data.notes && typeof data.notes === 'object' ? data.notes : {},
+    };
   }
   return null;
 }
