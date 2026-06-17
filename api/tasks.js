@@ -17,7 +17,7 @@ function validTasks(tasks) {
 }
 function normalize(data) {
   if (Array.isArray(data)) {
-    return validTasks(data) ? { people: [], tasks: data, history: [], meetings: [], notes: {} } : null;
+    return validTasks(data) ? { people: [], tasks: data, history: [], meetings: [], notes: {}, settings: {} } : null;
   }
   if (data && typeof data === 'object') {
     const people = Array.isArray(data.people) ? data.people : [];
@@ -28,6 +28,7 @@ function normalize(data) {
       history: Array.isArray(data.history) ? data.history : [],
       meetings: Array.isArray(data.meetings) ? data.meetings : [],
       notes: data.notes && typeof data.notes === 'object' ? data.notes : {},
+      settings: data.settings && typeof data.settings === 'object' ? data.settings : {},
     };
   }
   return null;
