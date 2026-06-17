@@ -441,6 +441,19 @@ function renderDashboard() {
       <div class="notes-saved" id="notes-saved"></div>
     </div>` : '';
 
+  const myTasksPanel = personView ? `
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">🗂️ Мои задачи (${scope.length})</div>
+      ${scope.length
+        ? `<div class="task-rows">${[...scope].sort((a, b) => {
+            if (isDone(a) !== isDone(b)) return isDone(a) ? 1 : -1;
+            const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+            const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+            return da - db;
+          }).map((t) => taskCardHtml(t, { compact: false })).join('')}</div>`
+        : '<div class="empty-hint">Задач пока нет</div>'}
+    </div>` : '';
+
   root.innerHTML = `
     ${personBannerHtml()}
     <div class="view-head"><div><div class="view-title">${headTitle}</div><div class="view-sub">${personView ? 'Только ваши задачи, дедлайны и созвоны' : 'Текущее состояние задач и команды'}</div></div></div>
@@ -495,7 +508,8 @@ function renderDashboard() {
             <span class="history-time">${relTime(h.ts)}</span></div>`).join('') : '<div class="empty-hint">Пока нет событий</div>'}
         </div>
       </div>
-    </div>`;
+    </div>
+    ${myTasksPanel}`;
 
   const exitBtn = document.getElementById('exit-person');
   if (exitBtn) exitBtn.onclick = () => setPersonView('');
