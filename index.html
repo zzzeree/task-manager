@@ -3,141 +3,200 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Менеджер задач</title>
+  <title>TaskFlow — управление задачами</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="container">
-    <header class="app-header">
-      <h1>📋 Менеджер задач</h1>
-      <p class="subtitle">Приоритеты, дедлайны и кто чем занимается</p>
+  <div class="app">
+    <!-- Верхняя панель -->
+    <header class="appbar">
+      <div class="brand">📋 TaskFlow</div>
+      <nav class="nav" id="nav">
+        <button class="nav-btn is-active" data-view="dashboard">Дашборд</button>
+        <button class="nav-btn" data-view="board">Доска</button>
+        <button class="nav-btn" data-view="calendar">Календарь</button>
+        <button class="nav-btn" data-view="team">Команда</button>
+      </nav>
+      <div class="appbar-actions">
+        <select class="person-view" id="person-view" title="Личный режим исполнителя"></select>
+        <button class="ghost-btn" id="manage-people-btn" title="Команда / исполнители">👥</button>
+        <button class="ghost-btn" id="export-btn" title="Сохранить в файл JSON">💾</button>
+        <button class="ghost-btn" id="import-btn" title="Загрузить из файла JSON">⬆</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden />
+        <button class="btn btn-primary add-task-btn" id="add-task-btn">＋ Создать</button>
+      </div>
     </header>
 
-    <!-- Панель данных -->
-    <div class="data-bar">
-      <button class="btn btn-soft" id="manage-people-btn" title="Добавить и изменить исполнителей">👥 Исполнители</button>
-      <button class="btn btn-soft" id="export-btn" title="Скачать все данные в файл tasks.json">💾 Сохранить JSON</button>
-      <button class="btn btn-soft" id="import-btn" title="Загрузить данные из файла tasks.json">⬆ Импорт JSON</button>
-      <input type="file" id="import-file" accept="application/json,.json" hidden />
-    </div>
+    <!-- Мобильная навигация -->
+    <nav class="nav-mobile" id="nav-mobile"></nav>
 
-    <!-- Форма добавления задачи -->
-    <form id="task-form" class="card task-form">
+    <main class="view-root" id="view-root"></main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="reminders" class="reminders"></div>
+
+  <!-- Модальное окно задачи (создание/редактирование) -->
+  <div class="modal-overlay" id="task-modal" hidden>
+    <div class="modal modal-task">
+      <button class="modal-close" type="button" id="task-close-x" title="Закрыть">×</button>
+      <h3 class="modal-title" id="task-modal-title">Новая задача</h3>
+
+      <div class="seg" id="t-type-row">
+        <button type="button" class="seg-btn is-on" data-type="task">📝 Задача</button>
+        <button type="button" class="seg-btn" data-type="project">📁 Проект</button>
+      </div>
+
       <div class="form-row">
-        <input type="text" id="title" class="input" placeholder="Что нужно сделать?" maxlength="200" autocomplete="off" required />
+        <input type="text" id="t-title" class="input" placeholder="Название задачи" maxlength="200" />
       </div>
       <div class="form-row">
-        <textarea id="description" class="input" placeholder="Описание (необязательно)" rows="2" maxlength="1000"></textarea>
+        <textarea id="t-description" class="input" placeholder="Описание (необязательно)" rows="2" maxlength="2000"></textarea>
       </div>
-      <div class="form-row">
+      <div class="form-grid">
         <div class="field">
-          <span class="field-label">Исполнители <span class="field-optional">· можно несколько</span></span>
-          <div class="multiselect" id="assignee-ms">
-            <button type="button" class="input ms-trigger" id="assignee-trigger">
-              <span class="ms-label is-placeholder" id="assignee-label">Не выбрано</span>
-              <span class="ms-arrow">▾</span>
-            </button>
-            <div class="ms-panel" id="assignee-panel" hidden></div>
-          </div>
+          <span class="field-label">Статус</span>
+          <select id="t-status" class="input">
+            <option value="new">Новые</option>
+            <option value="in_progress">В работе</option>
+            <option value="review">На проверке</option>
+            <option value="done">Выполнено</option>
+          </select>
         </div>
-      </div>
-      <div class="form-row form-row--inline">
-        <label class="field">
+        <div class="field">
           <span class="field-label">Приоритет</span>
-          <select id="priority" class="input">
+          <select id="t-priority" class="input">
             <option value="low">Низкий</option>
             <option value="medium" selected>Средний</option>
             <option value="high">Высокий</option>
           </select>
-        </label>
-        <label class="field">
-          <span class="field-label">Дедлайн <span class="field-optional">· необязательно</span></span>
-          <input type="datetime-local" id="deadline" class="input" />
-        </label>
-        <button type="submit" class="btn btn-primary add-btn">＋ Добавить</button>
-      </div>
-    </form>
-
-    <!-- Панель управления -->
-    <div class="toolbar">
-      <div class="filters" id="filters">
-        <button class="chip is-active" data-filter="all">Все</button>
-        <button class="chip" data-filter="active">Активные</button>
-        <button class="chip" data-filter="done">Выполненные</button>
-      </div>
-      <div class="counter" id="counter">Осталось: 0</div>
-    </div>
-
-    <!-- Активный фильтр по исполнителю -->
-    <div class="assignee-banner" id="assignee-banner" hidden></div>
-
-    <!-- Список задач -->
-    <ul id="task-list" class="task-list"></ul>
-
-    <div id="empty-state" class="empty-state" hidden>
-      <p>Пока нет задач. Добавьте первую сверху ☝️</p>
-    </div>
-  </div>
-
-  <div id="toast" class="toast" hidden></div>
-
-  <!-- Модальное окно: редактирование задачи -->
-  <div class="modal-overlay" id="edit-modal" hidden>
-    <div class="modal">
-      <button class="modal-close" type="button" id="edit-close-x" title="Закрыть">×</button>
-      <h3 class="modal-title">Редактировать задачу</h3>
-      <div class="form-row">
-        <input type="text" id="edit-title" class="input" placeholder="Название" maxlength="200" />
-      </div>
-      <div class="form-row">
-        <textarea id="edit-description" class="input" placeholder="Описание (необязательно)" rows="2" maxlength="1000"></textarea>
-      </div>
-      <div class="form-row form-row--inline">
-        <label class="field">
-          <span class="field-label">Приоритет</span>
-          <select id="edit-priority" class="input">
-            <option value="low">Низкий</option>
-            <option value="medium">Средний</option>
-            <option value="high">Высокий</option>
-          </select>
-        </label>
-        <label class="field">
+        </div>
+        <div class="field">
           <span class="field-label">Дедлайн</span>
-          <input type="datetime-local" id="edit-deadline" class="input" />
-        </label>
+          <input type="datetime-local" id="t-deadline" class="input" />
+        </div>
       </div>
       <div class="form-row">
         <div class="field">
           <span class="field-label">Исполнители</span>
-          <div class="multiselect" id="edit-assignee-ms">
-            <button type="button" class="input ms-trigger" id="edit-assignee-trigger">
-              <span class="ms-label is-placeholder" id="edit-assignee-label">Не выбрано</span>
+          <div class="multiselect" id="t-assignee-ms">
+            <button type="button" class="input ms-trigger" id="t-assignee-trigger">
+              <span class="ms-label is-placeholder" id="t-assignee-label">Не выбрано</span>
               <span class="ms-arrow">▾</span>
             </button>
-            <div class="ms-panel" id="edit-assignee-panel" hidden></div>
+            <div class="ms-panel" id="t-assignee-panel" hidden></div>
           </div>
         </div>
       </div>
+
+      <!-- Доп. блоки для проекта -->
+      <div id="t-project-extra" hidden>
+        <div class="form-row">
+          <span class="field-label">Ссылки</span>
+          <div class="inline-add">
+            <input type="text" id="t-link-input" class="input" placeholder="https://…" />
+            <button type="button" class="btn btn-soft" id="t-link-add">＋</button>
+          </div>
+          <div class="chips-list" id="t-links"></div>
+        </div>
+        <div class="form-row">
+          <span class="field-label">Файлы и фото</span>
+          <label class="file-drop"><input type="file" id="t-files" multiple hidden /><span>＋ Прикрепить файлы / фото</span></label>
+          <div class="files-grid" id="t-files-list"></div>
+        </div>
+        <div class="form-row">
+          <div class="sub-head"><span class="field-label">Подзадачи</span><span class="sub-progress" id="t-sub-progress"></span></div>
+          <div class="subtasks" id="t-subtasks"></div>
+          <div class="inline-add">
+            <input type="text" id="t-sub-input" class="input" placeholder="Новая подзадача…" />
+            <button type="button" class="btn btn-soft" id="t-sub-add">＋ Добавить</button>
+          </div>
+        </div>
+      </div>
+
       <div class="modal-actions">
-        <button class="btn btn-soft" type="button" id="edit-cancel">Отмена</button>
-        <button class="btn btn-primary" type="button" id="edit-save">Сохранить</button>
+        <button class="btn btn-danger-ghost" type="button" id="t-delete" hidden>Удалить</button>
+        <span class="spacer"></span>
+        <button class="btn btn-soft" type="button" id="t-cancel">Отмена</button>
+        <button class="btn btn-primary" type="button" id="t-save">Сохранить</button>
       </div>
     </div>
   </div>
 
-  <!-- Модальное окно: исполнители -->
+  <!-- Модальное окно команды -->
   <div class="modal-overlay" id="people-modal" hidden>
     <div class="modal">
       <button class="modal-close" type="button" id="people-close-x" title="Закрыть">×</button>
-      <h3 class="modal-title">👥 Исполнители</h3>
-      <p class="modal-hint">Имена доступны при выборе исполнителя задачи.</p>
+      <h3 class="modal-title">👥 Команда</h3>
+      <p class="modal-hint">Участники доступны при выборе исполнителей задачи.</p>
       <div class="people-list" id="people-list"></div>
       <form class="people-add" id="people-form">
-        <input type="text" id="person-name" class="input" placeholder="Имя исполнителя" maxlength="40" autocomplete="off" />
+        <input type="text" id="person-name" class="input" placeholder="Имя участника" maxlength="40" autocomplete="off" />
         <button type="submit" class="btn btn-primary">＋ Добавить</button>
       </form>
       <div class="modal-actions">
+        <span class="spacer"></span>
         <button class="btn btn-soft" type="button" id="people-close">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно созвона -->
+  <div class="modal-overlay" id="meeting-modal" hidden>
+    <div class="modal">
+      <button class="modal-close" type="button" id="m-close-x" title="Закрыть">×</button>
+      <h3 class="modal-title" id="meeting-modal-title">Новый созвон</h3>
+      <div class="modal-hint" id="m-scope"></div>
+      <div class="form-row">
+        <input type="text" id="m-title" class="input" placeholder="Название встречи" maxlength="200" />
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <span class="field-label">Дата</span>
+          <input type="date" id="m-date" class="input" />
+        </div>
+        <div class="field">
+          <span class="field-label">Время</span>
+          <input type="time" id="m-time" class="input" />
+        </div>
+        <div class="field">
+          <span class="field-label">Ссылка</span>
+          <input type="text" id="m-link" class="input" placeholder="Meet / Zoom…" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <span class="field-label">Участники</span>
+          <div class="multiselect" id="m-assignee-ms">
+            <button type="button" class="input ms-trigger" id="m-assignee-trigger">
+              <span class="ms-label is-placeholder" id="m-assignee-label">Не выбрано</span>
+              <span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-panel" id="m-assignee-panel" hidden></div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <textarea id="m-description" class="input" placeholder="Описание (необязательно)" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-danger-ghost" type="button" id="m-delete" hidden>Удалить</button>
+        <span class="spacer"></span>
+        <button class="btn btn-soft" type="button" id="m-cancel">Отмена</button>
+        <button class="btn btn-primary" type="button" id="m-save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно дня (все события даты) -->
+  <div class="modal-overlay" id="day-modal" hidden>
+    <div class="modal">
+      <button class="modal-close" type="button" id="day-close-x" title="Закрыть">×</button>
+      <h3 class="modal-title" id="day-title">День</h3>
+      <div id="day-body"></div>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn btn-soft" type="button" id="day-close">Закрыть</button>
       </div>
     </div>
   </div>
