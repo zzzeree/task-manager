@@ -26,6 +26,8 @@ let settings = {};          // общие настройки (напр. adminPas
 let adminUnlocked = false;  // разблокирован ли экспорт/импорт в этой сессии
 let view = 'dashboard';
 let personView = '';        // личный режим: id исполнителя или ''
+let boardShowAll = false;   // на доске в личном режиме: показать все задачи (не выходя из кабинета)
+let myTasksCollapsed = false; // свёрнут ли список «Мои задачи» на дашборде
 let filters = { q: '', person: '', priority: '', status: '' };
 let calMonth = startOfMonth(new Date());
 let editingId = null;       // задача в модалке
@@ -71,6 +73,9 @@ const els = {
   personName: document.getElementById('person-name'),
   personPass: document.getElementById('person-pass'),
   peopleClose: document.getElementById('people-close'),
+  adminModal: document.getElementById('admin-modal'),
+  adminList: document.getElementById('admin-list'),
+  adminClose: document.getElementById('admin-close'),
   // личный режим
   personViewSel: document.getElementById('person-view'),
   // проект
@@ -171,6 +176,12 @@ function meetingsForPerson() {
   return meetings.filter((m) => personView ? (!m.owner || m.owner === personView) : !m.owner);
 }
 function meetingDateTime(m) { return new Date(m.date + 'T' + (m.time || '00:00')); }
+function meetingWhenText(m) {
+  if (!m.date) return '';
+  const dt = meetingDateTime(m);
+  if (isNaN(dt)) return '';
+  return dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) + (m.time ? ' в ' + m.time : '');
+}
 
 // Лёгкое конфетти при завершении задачи
 function celebrate(title) {
@@ -309,7 +320,7 @@ function filteredTasks(opts) {
   opts = opts || {};
   const q = filters.q.trim().toLowerCase();
   return tasks.filter((t) => {
-    if (personView && !taskAssignees(t).includes(personView)) return false;
+    if (!opts.ignorePerson && personView && !taskAssignees(t).includes(personView)) return false;
     if (q && !(t.title + ' ' + (t.description || '')).toLowerCase().includes(q)) return false;
     if (filters.person && !taskAssignees(t).includes(filters.person)) return false;
     if (filters.priority && t.priority !== filters.priority) return false;
@@ -350,15 +361,15 @@ function hashStr(s) {
 function setPersonView(id) {
   if (id) {
     const p = getPerson(id);
-    if (p && p.passHash && !unlockedPersons.has(id)) {
+    if (p && p.passHash) {
       const entry = prompt(`🔒 Кабинет «${p.name}» защищён паролем.\nВведите пароль:`);
-      if (entry === null) { renderPersonViewSelect(); return; }
-      if (hashStr(entry) !== p.passHash) { showToast('Неверный пароль'); renderPersonViewSelect(); return; }
-      unlockedPersons.add(id);
+      if (entry === null) { renderPersonViewSelect(); return false; }
+      if (hashStr(entry) !== p.passHash) { showToast('Неверный пароль'); renderPersonViewSelect(); return false; }
     }
   }
   personView = id || '';
   render();
+  return true;
 }
 // Пароль на экспорт/импорт (общий «админ-пароль»)
 function requireAdmin() {
@@ -399,6 +410,7 @@ function setPersonPassword(id) {
   }
   save();
   renderPeopleModal();
+  if (view === 'team') renderTeam();
 }
 function personBannerHtml() {
   if (!personView) return '';
@@ -510,29 +522,32 @@ function renderDashboard() {
 
   const myTasksPanel = personView ? `
     <div class="panel" style="margin-bottom:14px">
-      <div class="panel-title">🗂️ Мои задачи (${scope.length})</div>
-      <div class="progress-wrap" style="margin-bottom:14px">
+      <div class="panel-title collapse-head" id="mytasks-head">
+        <span>🗂️ Мои задачи (${scope.length})</span>
+        <span class="collapse-arrow">${myTasksCollapsed ? '▸ развернуть' : '▾ свернуть'}</span>
+      </div>
+      <div class="progress-wrap" style="margin-bottom:${myTasksCollapsed ? '0' : '14px'}">
         <div class="progress-bar"><div class="progress-fill" style="width:${donePct}%"></div></div>
         <div class="progress-pct">${donePct}%</div>
       </div>
-      ${scope.length
+      ${myTasksCollapsed ? '' : (scope.length
         ? `<div class="task-rows">${[...scope].sort((a, b) => {
             if (isDone(a) !== isDone(b)) return isDone(a) ? 1 : -1;
             const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
             const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
             return da - db;
           }).map((t) => taskCardHtml(t, { compact: false })).join('')}</div>`
-        : '<div class="empty-hint">Задач пока нет</div>'}
+        : '<div class="empty-hint">Задач пока нет</div>')}
     </div>` : '';
 
   root.innerHTML = `
     ${personBannerHtml()}
     <div class="view-head"><div><div class="view-title">${headTitle}</div><div class="view-sub">${personView ? 'Только ваши задачи, дедлайны и созвоны' : 'Текущее состояние задач и команды'}</div></div></div>
     <div class="stat-grid">
-      <div class="stat accent"><div class="stat-num">${total}</div><div class="stat-label">${personView ? 'Моих задач' : 'Всего задач'}</div></div>
-      <div class="stat green"><div class="stat-num">${done}</div><div class="stat-label">Выполнено</div></div>
-      <div class="stat red"><div class="stat-num">${overdueList.length}</div><div class="stat-label">Просрочено</div></div>
-      <div class="stat yellow"><div class="stat-num">${today}</div><div class="stat-label">Дедлайн сегодня</div></div>
+      <div class="stat accent" data-go="all" title="Открыть на доске"><div class="stat-num">${total}</div><div class="stat-label">${personView ? 'Моих задач' : 'Всего задач'}</div></div>
+      <div class="stat green" data-go="done" title="Открыть на доске"><div class="stat-num">${done}</div><div class="stat-label">Выполнено</div></div>
+      <div class="stat red" data-go="overdue" title="Открыть на доске"><div class="stat-num">${overdueList.length}</div><div class="stat-label">Просрочено</div></div>
+      <div class="stat yellow" data-go="today" title="Открыть на доске"><div class="stat-num">${today}</div><div class="stat-label">Дедлайн сегодня</div></div>
     </div>
     ${personView ? '' : `<div class="panel" style="margin-bottom:14px">
       <div class="panel-title">Прогресс проекта</div>
@@ -586,6 +601,8 @@ function renderDashboard() {
   if (exitBtn) exitBtn.onclick = () => setPersonView('');
   const am = document.getElementById('dash-add-meeting');
   if (am) am.onclick = () => openMeetingModal(null);
+  const mh = document.getElementById('mytasks-head');
+  if (mh) mh.onclick = () => { myTasksCollapsed = !myTasksCollapsed; renderDashboard(); };
   const na = document.getElementById('notes-area');
   const nsave = document.getElementById('notes-save');
   if (na) {
@@ -648,7 +665,8 @@ function renderInPlace() {
 
 // ---------- Доска (Kanban) ----------
 function renderBoard() {
-  const list = filteredTasks({ useStatus: false });
+  const ignore = personView && boardShowAll;
+  const list = filteredTasks({ useStatus: false, ignorePerson: ignore });
   const cols = STATUSES.map((s) => {
     const items = list.filter((t) => statusOf(t) === s.key);
     return `
@@ -663,13 +681,24 @@ function renderBoard() {
         </div>
       </div>`;
   }).join('');
+  const scopeToggle = personView ? `<div class="filters board-scope">
+      <button class="chip ${!boardShowAll ? 'is-active' : ''}" data-scope="mine">Мои задачи</button>
+      <button class="chip ${boardShowAll ? 'is-active' : ''}" data-scope="all">Все задачи</button>
+    </div>` : '';
   root.innerHTML = `
     ${personBannerHtml()}
-    <div class="view-head"><div class="view-title">Доска</div></div>
+    <div class="view-head"><div class="view-title">Доска</div>${scopeToggle}</div>
     ${filterbarHtml(false)}
     <div class="board">${cols}</div>`;
   const exitBtn = document.getElementById('exit-person');
   if (exitBtn) exitBtn.onclick = () => setPersonView('');
+  const scopeEl = root.querySelector('.board-scope');
+  if (scopeEl) scopeEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-scope]');
+    if (!b) return;
+    boardShowAll = b.dataset.scope === 'all';
+    renderBoard();
+  });
   wireFilterbar();
   wireBoardDnd();
 }
@@ -790,8 +819,13 @@ function renderTeam() {
   root.innerHTML = `
     <div class="view-head">
       <div class="view-title">Команда</div>
-      <button class="btn btn-soft" id="team-manage">Управление</button>
+      <button class="btn btn-soft" id="team-admin">🛡 Админ-панель</button>
     </div>
+    <form class="people-add" id="team-add" style="margin-bottom:16px">
+      <input type="text" id="team-name" class="input" placeholder="Имя участника" maxlength="40" autocomplete="off" />
+      <input type="text" id="team-pass" class="input" placeholder="Пароль кабинета (необязательно)" maxlength="40" autocomplete="off" />
+      <button type="submit" class="btn btn-primary">＋ Добавить</button>
+    </form>
     ${people.length
       ? `<div class="team-grid">${people.map((p) => {
           const all = tasks.filter((t) => taskAssignees(t).includes(p.id));
@@ -802,17 +836,36 @@ function renderTeam() {
           return `
             <div class="member" data-person="${p.id}" draggable="true">
               <span class="member-drag" title="Перетащите, чтобы поменять местами">⠿</span>
-              <div class="member-head">${avatarHtml(p, 'lg')}<div><div class="member-name">${escapeHtml(p.name)}</div><div class="member-role">${all.length} задач(и)</div></div></div>
+              <div class="member-head">${avatarHtml(p, 'lg')}<div>
+                <div class="member-name">${escapeHtml(p.name)} ${p.passHash ? '<span class="pr-lock" title="Кабинет под паролем">🔒</span>' : '<span class="pr-unlock" title="Без пароля">🔓</span>'}</div>
+                <div class="member-role">${all.length} задач(и)</div></div></div>
               <div class="member-stats">
                 <div class="member-stat"><b>${active}</b><span>Активные</span></div>
                 <div class="member-stat"><b>${prog}</b><span>В работе</span></div>
                 <div class="member-stat"><b>${done}</b><span>Готово</span></div>
               </div>
               <div class="member-load"><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>
+              <div class="member-actions">
+                <button class="mbtn" data-pact="pass">${p.passHash ? '🔒 Сменить пароль' : '🔓 Поставить пароль'}</button>
+                <button class="mbtn" data-pact="edit" title="Переименовать">✎</button>
+                <button class="mbtn del" data-pact="del" title="Удалить">🗑</button>
+              </div>
             </div>`;
         }).join('')}</div>`
-      : `<div class="empty-state"><div class="big">👥</div>Команда пуста — нажмите «Управление», чтобы добавить участников</div>`}`;
-  document.getElementById('team-manage').onclick = openPeopleModal;
+      : `<div class="empty-state"><div class="big">👥</div>Команда пуста — добавьте участника в форме выше</div>`}`;
+  document.getElementById('team-admin').onclick = () => { if (requireAdmin()) openAdminModal(); };
+  document.getElementById('team-add').onsubmit = (e) => {
+    e.preventDefault();
+    const name = document.getElementById('team-name').value.trim();
+    if (!name) return;
+    const pass = document.getElementById('team-pass').value.trim();
+    const person = { id: uid(), name, color: PALETTE[people.length % PALETTE.length] };
+    if (pass) person.passHash = hashStr(pass);
+    people.push(person);
+    logEvent(`Добавлен участник ${name}`);
+    save();
+    renderTeam();
+  };
   wireTeamDnd();
 }
 
@@ -853,7 +906,8 @@ function applyTypeUI() {
   els.projectExtra.hidden = !isProj;
   els.tTitle.placeholder = isProj ? 'Название проекта' : 'Название задачи';
   els.taskModalTitle.textContent = editingId ? (isProj ? 'Проект' : 'Задача') : (isProj ? 'Новый проект' : 'Новая задача');
-  if (isProj) { renderLinks(); renderFiles(); renderSubtasks(); }
+  if (isProj) { renderLinks(); renderFiles(); }
+  renderSubtasks();
 }
 
 // ---- ссылки ----
@@ -901,6 +955,7 @@ function renderSubtasks() {
       <div class="sr-top">
         <input type="checkbox" class="sr-check" data-i="${i}" ${s.status === 'done' ? 'checked' : ''} />
         <input type="text" class="sr-title" data-i="${i}" data-f="title" value="${escapeHtml(s.title)}" placeholder="Подзадача" />
+        ${s.by && getPerson(s.by) ? `<span class="sr-by" title="Добавил(а): ${escapeHtml(getPerson(s.by).name)}">${avatarHtml(getPerson(s.by), 'sm')}</span>` : ''}
         <button class="sr-del" data-del="${i}" title="Удалить">🗑</button>
       </div>
       <div class="sr-fields">
@@ -915,7 +970,7 @@ function renderSubtasks() {
 function addSubtask() {
   const v = els.subInput.value.trim();
   if (!v) return;
-  modalSubtasks.push({ id: uid(), title: v, description: '', assigneeId: '', deadline: '', priority: 'medium', status: 'new' });
+  modalSubtasks.push({ id: uid(), title: v, description: '', assigneeId: '', deadline: '', priority: 'medium', status: 'new', by: personView || '' });
   els.subInput.value = '';
   renderSubtasks();
 }
@@ -957,6 +1012,7 @@ function saveTask() {
       links: [...modalLinks],
       files: [...modalFiles],
       subtasks: modalSubtasks.map((s) => ({ ...s })),
+      by: personView || '',
       createdAt: new Date().toISOString(),
     });
     logEvent(`${modalType === 'project' ? 'Создан проект' : 'Добавлена задача'} «${title}»`);
@@ -974,7 +1030,7 @@ function renderModalAssignees() {
   els.tAssigneeLabel.textContent = names.length === 0 ? 'Не выбрано' : (names.length <= 2 ? names.join(', ') : names.length + ' выбрано');
   els.tAssigneeLabel.classList.toggle('is-placeholder', names.length === 0);
   if (people.length === 0) {
-    els.tAssigneePanel.innerHTML = '<div class="ms-empty">Сначала добавьте участников (кнопка 👥 вверху)</div>';
+    els.tAssigneePanel.innerHTML = '<div class="ms-empty">Сначала добавьте участников во вкладке «Команда»</div>';
     return;
   }
   els.tAssigneePanel.innerHTML = people.map((p) => {
@@ -1029,7 +1085,7 @@ function renamePerson(id) {
   const p = getPerson(id); if (!p) return;
   const v = prompt('Переименовать участника:', p.name); if (v === null) return;
   const t = v.trim(); if (!t) return;
-  p.name = t; save(); renderPeopleModal(); renderModalAssignees();
+  p.name = t; save(); renderPeopleModal(); renderModalAssignees(); if (view === 'team') renderTeam();
 }
 function deletePerson(id) {
   const p = getPerson(id); if (!p) return;
@@ -1038,7 +1094,7 @@ function deletePerson(id) {
   tasks.forEach((t) => { t.assigneeIds = taskAssignees(t).filter((a) => a !== id); });
   modalAssignees = modalAssignees.filter((a) => a !== id);
   if (filters.person === id) filters.person = '';
-  save(); renderPeopleModal(); renderModalAssignees();
+  save(); renderPeopleModal(); renderModalAssignees(); if (view === 'team') renderTeam();
 }
 function reorderPeople(fromId, toId) {
   const fi = people.findIndex((p) => p.id === fromId);
@@ -1049,6 +1105,31 @@ function reorderPeople(fromId, toId) {
   save();
   if (!els.peopleModal.hidden) renderPeopleModal();
   if (view === 'team') renderTeam();
+}
+
+// ====================== Админ-панель ======================
+function openAdminModal() { renderAdminList(); els.adminModal.hidden = false; }
+function closeAdminModal() { els.adminModal.hidden = true; }
+function renderAdminList() {
+  if (!people.length) { els.adminList.innerHTML = '<div class="people-empty">Нет участников</div>'; return; }
+  els.adminList.innerHTML = people.map((p) => `
+    <div class="person-row" data-id="${p.id}">
+      ${avatarHtml(p)}
+      <span class="pr-name">${escapeHtml(p.name)}</span>
+      <span class="pr-count">${p.passHash ? '🔒 с паролем' : 'без пароля'}</span>
+      ${p.passHash ? '<button class="del admin-reset" data-act="reset">Сбросить пароль</button>' : ''}
+    </div>`).join('');
+}
+function resetPersonPassword(id) {
+  const p = getPerson(id);
+  if (!p || !p.passHash) return;
+  if (!confirm(`Сбросить пароль участника «${p.name}»? Он сможет задать новый при входе.`)) return;
+  delete p.passHash;
+  unlockedPersons.delete(id);
+  logEvent(`Сброшен пароль кабинета «${p.name}» (админ)`);
+  save();
+  renderAdminList();
+  showToast('Пароль сброшен');
 }
 
 // ====================== Созвоны ======================
@@ -1089,10 +1170,11 @@ function saveMeeting() {
     m.title = title; m.date = els.mDate.value; m.time = els.mTime.value;
     m.link = els.mLink.value.trim(); m.description = els.mDescription.value.trim();
     m.participantIds = [...meetingParts]; m.owner = meetingOwner || '';
-    logEvent(`Изменён созвон «${title}»`);
+    logEvent(`Изменён созвон «${title}» — ${meetingWhenText(m)}`);
   } else {
-    meetings.push({ id: uid(), title, date: els.mDate.value, time: els.mTime.value, link: els.mLink.value.trim(), description: els.mDescription.value.trim(), participantIds: [...meetingParts], owner: meetingOwner || '', createdAt: new Date().toISOString() });
-    logEvent(`${meetingOwner ? 'Личный созвон' : 'Создан созвон'} «${title}»`);
+    const m = { id: uid(), title, date: els.mDate.value, time: els.mTime.value, link: els.mLink.value.trim(), description: els.mDescription.value.trim(), participantIds: [...meetingParts], owner: meetingOwner || '', createdAt: new Date().toISOString() };
+    meetings.push(m);
+    logEvent(`${meetingOwner ? 'Личный созвон' : 'Создан созвон'} «${title}» — ${meetingWhenText(m)}`);
   }
   save(); closeMeetingModal(); render();
 }
@@ -1108,7 +1190,7 @@ function renderMeetingParts() {
   const names = meetingParts.map(getPerson).filter(Boolean).map((p) => p.name);
   els.mAssigneeLabel.textContent = names.length === 0 ? 'Не выбрано' : (names.length <= 2 ? names.join(', ') : names.length + ' выбрано');
   els.mAssigneeLabel.classList.toggle('is-placeholder', names.length === 0);
-  if (!people.length) { els.mAssigneePanel.innerHTML = '<div class="ms-empty">Сначала добавьте участников (кнопка 👥)</div>'; return; }
+  if (!people.length) { els.mAssigneePanel.innerHTML = '<div class="ms-empty">Сначала добавьте участников во вкладке «Команда»</div>'; return; }
   els.mAssigneePanel.innerHTML = people.map((p) => {
     const on = meetingParts.includes(p.id) ? ' is-on' : '';
     return `<button type="button" class="ms-option${on}" data-id="${p.id}"><span class="ms-check">✓</span>${avatarHtml(p, 'sm')} ${escapeHtml(p.name)}</button>`;
@@ -1258,6 +1340,18 @@ function checkReminders() {
       notifyReminder(`⏰ Дедлайн «${t.title}» — осталось ${left} · ${assigneeNames(t)}`, 'deadline');
     }
   });
+  // новые задачи, назначенные на текущий кабинет (созданные другими, свежие)
+  if (personView) {
+    tasks.forEach((t) => {
+      if (isDone(t) || t.by === personView) return;
+      if (!taskAssignees(t).includes(personView)) return;
+      if (!t.createdAt || (now - new Date(t.createdAt)) / 36e5 > 48) return;
+      const key = 'new:' + t.id;
+      if (remindersShown.has(key)) return;
+      remindersShown.add(key);
+      notifyReminder(`🆕 Новая задача для вас: «${t.title}»`, 'meeting');
+    });
+  }
 }
 
 function startReminders() {
@@ -1276,13 +1370,14 @@ els.navMobile.innerHTML = VIEWS.map((v) => `<button class="nav-btn" data-view="$
 }));
 
 els.addTaskBtn.addEventListener('click', () => openTaskModal(null));
-els.managePeopleBtn.addEventListener('click', openPeopleModal);
 els.exportBtn.addEventListener('click', () => { if (requireAdmin()) exportJson(); });
 els.importBtn.addEventListener('click', () => { if (requireAdmin()) els.importFile.click(); });
 els.importFile.addEventListener('change', (e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; });
 
 // делегирование кликов в контенте: открыть задачу
 root.addEventListener('click', (e) => {
+  const go = e.target.closest('.stat[data-go]');
+  if (go) { setView('board'); return; }
   const day = e.target.closest('[data-day]');
   if (day) { openDayModal(day.dataset.day); return; }
   const meet = e.target.closest('[data-meet]');
@@ -1291,8 +1386,21 @@ root.addEventListener('click', (e) => {
   if (open) { openTaskModal(open.dataset.open); return; }
   const card = e.target.closest('.task-card');
   if (card && !card.classList.contains('dragging')) { openTaskModal(card.dataset.id); return; }
+  const pact = e.target.closest('.member [data-pact]');
+  if (pact) {
+    e.stopPropagation();
+    const mem = pact.closest('.member'); const id = mem.dataset.person; const a = pact.dataset.pact;
+    if (a === 'pass') setPersonPassword(id);
+    else if (a === 'edit') renamePerson(id);
+    else if (a === 'del') deletePerson(id);
+    return;
+  }
   const member = e.target.closest('.member[data-person]');
-  if (member) { personView = member.dataset.person; view = 'dashboard'; render(); window.scrollTo(0, 0); return; }
+  if (member) {
+    const id = member.dataset.person;
+    if (setPersonView(id) && personView === id) { view = 'dashboard'; render(); window.scrollTo(0, 0); }
+    return;
+  }
 });
 
 // модалка задачи
@@ -1328,6 +1436,16 @@ els.peopleList.addEventListener('click', (e) => {
   if (btn.dataset.act === 'edit') renamePerson(row.dataset.id);
   else if (btn.dataset.act === 'del') deletePerson(row.dataset.id);
   else if (btn.dataset.act === 'lock') setPersonPassword(row.dataset.id);
+});
+
+// Админ-панель
+document.getElementById('open-admin').addEventListener('click', () => { if (requireAdmin()) { closePeopleModal(); openAdminModal(); } });
+els.adminClose.addEventListener('click', closeAdminModal);
+document.getElementById('admin-close-x').addEventListener('click', closeAdminModal);
+els.adminModal.addEventListener('click', (e) => { if (e.target === els.adminModal) closeAdminModal(); });
+els.adminList.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-act="reset"]'); if (!btn) return;
+  const row = btn.closest('.person-row'); if (row) resetPersonPassword(row.dataset.id);
 });
 
 // личный режим
@@ -1405,6 +1523,7 @@ document.addEventListener('keydown', (e) => {
     if (!els.taskModal.hidden) closeTaskModal();
     if (!els.peopleModal.hidden) closePeopleModal();
     if (!els.meetingModal.hidden) closeMeetingModal();
+    if (!els.adminModal.hidden) closeAdminModal();
   }
 });
 

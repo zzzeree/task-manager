@@ -19,7 +19,6 @@
       </nav>
       <div class="appbar-actions">
         <select class="person-view" id="person-view" title="Личный режим исполнителя"></select>
-        <button class="ghost-btn" id="manage-people-btn" title="Команда / исполнители">👥</button>
         <button class="ghost-btn" id="export-btn" title="Сохранить в файл JSON">💾</button>
         <button class="ghost-btn" id="import-btn" title="Загрузить из файла JSON">⬆</button>
         <input type="file" id="import-file" accept="application/json,.json" hidden />
@@ -104,13 +103,15 @@
           <label class="file-drop"><input type="file" id="t-files" multiple hidden /><span>＋ Прикрепить файлы / фото</span></label>
           <div class="files-grid" id="t-files-list"></div>
         </div>
-        <div class="form-row">
-          <div class="sub-head"><span class="field-label">Подзадачи</span><span class="sub-progress" id="t-sub-progress"></span></div>
-          <div class="subtasks" id="t-subtasks"></div>
-          <div class="inline-add">
-            <input type="text" id="t-sub-input" class="input" placeholder="Новая подзадача…" />
-            <button type="button" class="btn btn-soft" id="t-sub-add">＋ Добавить</button>
-          </div>
+      </div>
+
+      <!-- Подзадачи — для любой задачи -->
+      <div class="form-row">
+        <div class="sub-head"><span class="field-label">Подзадачи <span class="field-optional">· необязательно</span></span><span class="sub-progress" id="t-sub-progress"></span></div>
+        <div class="subtasks" id="t-subtasks"></div>
+        <div class="inline-add">
+          <input type="text" id="t-sub-input" class="input" placeholder="Новая подзадача…" />
+          <button type="button" class="btn btn-soft" id="t-sub-add">＋ Добавить</button>
         </div>
       </div>
 
@@ -136,8 +137,23 @@
         <button type="submit" class="btn btn-primary">＋ Добавить</button>
       </form>
       <div class="modal-actions">
+        <button class="btn btn-soft" type="button" id="open-admin">🛡 Админ-панель</button>
         <span class="spacer"></span>
         <button class="btn btn-soft" type="button" id="people-close">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно админ-панели -->
+  <div class="modal-overlay" id="admin-modal" hidden>
+    <div class="modal">
+      <button class="modal-close" type="button" id="admin-close-x" title="Закрыть">×</button>
+      <h3 class="modal-title">🛡 Админ-панель</h3>
+      <p class="modal-hint">Сброс пароля участника (если забыл). После сброса он сможет задать новый.</p>
+      <div class="people-list" id="admin-list"></div>
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="btn btn-soft" type="button" id="admin-close">Готово</button>
       </div>
     </div>
   </div>

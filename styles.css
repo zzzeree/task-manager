@@ -443,6 +443,25 @@ textarea.input { resize: vertical; }
 .notes-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
 .notes-save-btn { padding: 7px 16px; font-size: 13px; white-space: nowrap; }
 .pr-lock { font-size: 11px; }
+/* Кликабельные плитки статистики */
+.stat[data-go] { cursor: pointer; transition: box-shadow .15s, transform .12s; }
+.stat[data-go]:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+/* Автор подзадачи */
+.sr-by { display: inline-flex; flex-shrink: 0; }
+.sr-by .avatar.sm { border-width: 1px; }
+/* Кнопка сброса пароля в админке */
+.admin-reset { white-space: nowrap; font-size: 12px; font-weight: 600; }
+/* Переключатель «Мои / Все» на доске */
+.board-scope { background: rgba(255,255,255,.6); padding: 3px; border-radius: var(--radius-xs); border: 1px solid var(--border); }
+/* Сворачивание «Мои задачи» */
+.collapse-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.collapse-arrow { font-size: 12px; color: var(--muted); font-weight: 600; }
+/* Кнопки управления в карточке команды */
+.member-actions { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.mbtn { background: var(--bg); border: 1px solid var(--border); color: var(--text-2); font-family: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.mbtn:hover { background: #fff; border-color: var(--accent); color: var(--accent); }
+.mbtn.del:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+.pr-unlock { font-size: 11px; opacity: .5; }
 
 /* ---------- Календарь: созвоны ---------- */
 .cal-pill.meeting { background: #e7f7f3; color: #0f8a6e; }
