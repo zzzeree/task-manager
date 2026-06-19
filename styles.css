@@ -232,6 +232,7 @@ textarea.input { resize: vertical; }
 .chip-status { color: #fff; }
 .chip-status.new { background: var(--muted); }
 .chip-status.in_progress { background: var(--accent); }
+.chip-status.paused { background: #ec8a3c; }
 .chip-status.review { background: var(--yellow); }
 .chip-status.done { background: var(--green); }
 .chip-deadline.soon { background: var(--yellow-bg); color: #9a6c0c; }
@@ -244,7 +245,7 @@ textarea.input { resize: vertical; }
 .task-rows { display: flex; flex-direction: column; gap: 9px; }
 
 /* ---------- Kanban ---------- */
-.board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: stretch; }
+.board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: stretch; }
 .column {
   display: flex;
   flex-direction: column;
@@ -259,6 +260,7 @@ textarea.input { resize: vertical; }
 .col-dot { width: 9px; height: 9px; border-radius: 50%; }
 .col-dot.new { background: var(--muted); }
 .col-dot.in_progress { background: var(--accent); }
+.col-dot.paused { background: #ec8a3c; }
 .col-dot.review { background: var(--yellow); }
 .col-dot.done { background: var(--green); }
 .col-name { font-size: 13.5px; font-weight: 700; }
@@ -296,25 +298,32 @@ textarea.input { resize: vertical; }
 .cal-more { font-size: 10.5px; color: var(--muted); font-weight: 600; }
 
 /* ---------- Команда ---------- */
-.team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.team-add { margin-bottom: 18px; max-width: 460px; }
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .member {
-  position: relative;
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px; box-shadow: var(--shadow-xs); cursor: grab; transition: box-shadow 0.15s, transform 0.12s, border-color 0.15s;
+  position: relative; overflow: hidden;
+  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  padding: 24px 18px 18px; box-shadow: var(--shadow-xs); cursor: grab;
+  text-align: center; transition: box-shadow 0.18s, transform 0.14s, border-color 0.15s;
 }
-.member:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.member:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); }
 .member:active { cursor: grabbing; }
 .member.dragging { opacity: 0.4; }
 .member.drop-hint { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(90, 99, 240, 0.3); }
-.member-drag { position: absolute; top: 12px; right: 14px; color: #cdd2db; font-size: 15px; user-select: none; }
-.member-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.member-name { font-size: 15px; font-weight: 700; }
+.member-bar { position: absolute; top: 0; left: 0; right: 0; height: 6px; opacity: 0.9; }
+.member-top { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 16px; }
+.member-top .avatar.xl { margin-bottom: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.10); }
+.member-name { font-size: 16px; font-weight: 700; }
 .member-role { font-size: 12px; color: var(--muted); }
-.member-stats { display: flex; gap: 8px; }
-.member-stat { flex: 1; text-align: center; background: var(--bg); border-radius: 10px; padding: 9px 4px; }
-.member-stat b { display: block; font-size: 18px; font-weight: 800; }
-.member-stat span { font-size: 11px; color: var(--muted); font-weight: 600; }
-.member-load { margin-top: 12px; }
+.member-stats { display: flex; gap: 7px; }
+.member-stat { flex: 1; text-align: center; background: var(--bg); border-radius: 11px; padding: 10px 4px; }
+.member-stat b { display: block; font-size: 19px; font-weight: 800; }
+.member-stat span { font-size: 10.5px; color: var(--muted); font-weight: 600; }
+.member-load { margin-top: 14px; }
+.member-load-top { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); font-weight: 600; margin-bottom: 5px; }
+.member-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; }
+.member:hover .member-actions { opacity: 1; }
+.avatar.xl { width: 64px; height: 64px; font-size: 22px; border-width: 0; }
 
 /* ---------- Пусто ---------- */
 .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }

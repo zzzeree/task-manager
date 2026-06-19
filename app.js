@@ -4,11 +4,12 @@
 const STATUSES = [
   { key: 'new', label: 'Новые' },
   { key: 'in_progress', label: 'В работе' },
+  { key: 'paused', label: 'На паузе' },
   { key: 'review', label: 'На проверке' },
   { key: 'done', label: 'Выполнено' },
 ];
 const STATUS_LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]));
-const PROGRESS = { new: 0, in_progress: 40, review: 75, done: 100 };
+const PROGRESS = { new: 0, in_progress: 40, paused: 30, review: 75, done: 100 };
 const PRIORITY_LABEL = { low: 'Низкий', medium: 'Средний', high: 'Высокий' };
 const PALETTE = ['#5a63f0', '#7c5cf6', '#18a971', '#e0a312', '#ed5a73', '#3b9af0', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const VIEWS = ['dashboard', 'board', 'calendar', 'team'];
@@ -359,59 +360,12 @@ function hashStr(s) {
   return 'h' + h.toString(36);
 }
 function setPersonView(id) {
-  if (id) {
-    const p = getPerson(id);
-    if (p && p.passHash) {
-      const entry = prompt(`🔒 Кабинет «${p.name}» защищён паролем.\nВведите пароль:`);
-      if (entry === null) { renderPersonViewSelect(); return false; }
-      if (hashStr(entry) !== p.passHash) { showToast('Неверный пароль'); renderPersonViewSelect(); return false; }
-    }
-  }
   personView = id || '';
   render();
   return true;
 }
-// Пароль на экспорт/импорт (общий «админ-пароль»)
-function requireAdmin() {
-  if (adminUnlocked) return true;
-  if (!settings.adminPassHash) {
-    const set = prompt('💾 / ⬆ Эти кнопки выгружают и загружают ВСЕ данные.\nЗащитите их паролем — придумайте его (пусто — без защиты):', '');
-    if (set === null) return false;
-    if (set.trim()) { settings.adminPassHash = hashStr(set); save(); showToast('Пароль установлен'); }
-    adminUnlocked = true;
-    return true;
-  }
-  const entry = prompt('🔒 Введите пароль для экспорта/импорта:');
-  if (entry === null) return false;
-  if (hashStr(entry) !== settings.adminPassHash) { showToast('Неверный пароль'); return false; }
-  adminUnlocked = true;
-  return true;
-}
-// Установить / снять / сменить пароль участника
-function setPersonPassword(id) {
-  const p = getPerson(id);
-  if (!p) return;
-  // чтобы сменить/снять пароль — нужно знать текущий
-  if (p.passHash) {
-    const cur = prompt(`🔒 Кабинет «${p.name}» защищён.\nВведите текущий пароль, чтобы изменить его:`);
-    if (cur === null) return;
-    if (hashStr(cur) !== p.passHash) { showToast('Неверный пароль'); return; }
-  }
-  const entry = prompt(`Новый пароль для «${p.name}» (пусто — снять защиту):`, '');
-  if (entry === null) return;
-  if (entry.trim() === '') {
-    delete p.passHash; unlockedPersons.delete(id);
-    logEvent(`Снят пароль кабинета «${p.name}»`);
-    showToast('Пароль снят');
-  } else {
-    p.passHash = hashStr(entry); unlockedPersons.add(id);
-    logEvent(`Изменён пароль кабинета «${p.name}»`);
-    showToast('Пароль установлен');
-  }
-  save();
-  renderPeopleModal();
-  if (view === 'team') renderTeam();
-}
+// Пароли убраны — действия доступны всем.
+function requireAdmin() { return true; }
 function personBannerHtml() {
   if (!personView) return '';
   const p = getPerson(personView);
@@ -704,20 +658,55 @@ function renderBoard() {
 }
 
 let dragTaskId = null;
+// найти карточку, ПЕРЕД которой нужно вставить (по позиции курсора)
+function getDragAfterElement(container, y) {
+  const cards = [...container.querySelectorAll('.task-card:not(.dragging)')];
+  let closest = { offset: -Infinity, el: null };
+  for (const c of cards) {
+    const box = c.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) closest = { offset, el: c };
+  }
+  return closest.el;
+}
 function wireBoardDnd() {
   root.querySelectorAll('.col-body .task-card').forEach((card) => {
     card.addEventListener('dragstart', (e) => { dragTaskId = card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; startAutoScroll(); });
     card.addEventListener('dragend', () => { dragTaskId = null; card.classList.remove('dragging'); root.querySelectorAll('.column.drop-hint').forEach((c) => c.classList.remove('drop-hint')); stopAutoScroll(); });
   });
   root.querySelectorAll('.column').forEach((col) => {
+    const body = col.querySelector('.col-body');
     col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hint'); });
     col.addEventListener('dragleave', (e) => { if (!col.contains(e.relatedTarget)) col.classList.remove('drop-hint'); });
     col.addEventListener('drop', (e) => {
       e.preventDefault();
       col.classList.remove('drop-hint');
-      if (dragTaskId) setStatus(dragTaskId, col.dataset.status);
+      if (!dragTaskId) return;
+      const after = body ? getDragAfterElement(body, e.clientY) : null;
+      moveTaskOnBoard(dragTaskId, col.dataset.status, after ? after.dataset.id : null);
     });
   });
+}
+// Переставить задачу: сменить статус (если нужно) и поставить на нужное место по порядку
+function moveTaskOnBoard(id, status, beforeId) {
+  const t = tasks.find((x) => x.id === id);
+  if (!t) return;
+  const prevStatus = statusOf(t);
+  if (prevStatus !== status) {
+    t.status = status; t.done = status === 'done';
+    logEvent(`Статус «${t.title}»: ${STATUS_LABEL[prevStatus]} → ${STATUS_LABEL[status]}`);
+    if (status === 'done') celebrate(t.title);
+  }
+  const fromIdx = tasks.findIndex((x) => x.id === id);
+  tasks.splice(fromIdx, 1);
+  let insertIdx = tasks.length;
+  if (beforeId) {
+    const bi = tasks.findIndex((x) => x.id === beforeId);
+    if (bi !== -1) insertIdx = bi;
+  }
+  tasks.splice(insertIdx, 0, t);
+  save();
+  render();
 }
 
 // Автопрокрутка страницы при перетаскивании к верх/низ краю экрана
@@ -818,12 +807,10 @@ function renderCalendar() {
 function renderTeam() {
   root.innerHTML = `
     <div class="view-head">
-      <div class="view-title">Команда</div>
-      <button class="btn btn-soft" id="team-admin">🛡 Админ-панель</button>
+      <div><div class="view-title">Команда</div><div class="view-sub">${people.length} участник(ов)</div></div>
     </div>
-    <form class="people-add" id="team-add" style="margin-bottom:16px">
-      <input type="text" id="team-name" class="input" placeholder="Имя участника" maxlength="40" autocomplete="off" />
-      <input type="text" id="team-pass" class="input" placeholder="Пароль кабинета (необязательно)" maxlength="40" autocomplete="off" />
+    <form class="people-add team-add" id="team-add">
+      <input type="text" id="team-name" class="input" placeholder="Имя нового участника" maxlength="40" autocomplete="off" />
       <button type="submit" class="btn btn-primary">＋ Добавить</button>
     </form>
     ${people.length
@@ -835,33 +822,33 @@ function renderTeam() {
           const pct = all.length ? Math.round((done / all.length) * 100) : 0;
           return `
             <div class="member" data-person="${p.id}" draggable="true">
-              <span class="member-drag" title="Перетащите, чтобы поменять местами">⠿</span>
-              <div class="member-head">${avatarHtml(p, 'lg')}<div>
-                <div class="member-name">${escapeHtml(p.name)} ${p.passHash ? '<span class="pr-lock" title="Кабинет под паролем">🔒</span>' : '<span class="pr-unlock" title="Без пароля">🔓</span>'}</div>
-                <div class="member-role">${all.length} задач(и)</div></div></div>
+              <div class="member-bar" style="background:${personColor(p)}"></div>
+              <div class="member-actions">
+                <button class="mbtn" data-pact="edit" title="Переименовать">✎</button>
+                <button class="mbtn del" data-pact="del" title="Удалить">🗑</button>
+              </div>
+              <div class="member-top">
+                ${avatarHtml(p, 'xl')}
+                <div class="member-name">${escapeHtml(p.name)}</div>
+                <div class="member-role">${all.length ? all.length + ' задач(и)' : 'нет задач'}</div>
+              </div>
               <div class="member-stats">
                 <div class="member-stat"><b>${active}</b><span>Активные</span></div>
                 <div class="member-stat"><b>${prog}</b><span>В работе</span></div>
                 <div class="member-stat"><b>${done}</b><span>Готово</span></div>
               </div>
-              <div class="member-load"><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>
-              <div class="member-actions">
-                <button class="mbtn" data-pact="pass">${p.passHash ? '🔒 Сменить пароль' : '🔓 Поставить пароль'}</button>
-                <button class="mbtn" data-pact="edit" title="Переименовать">✎</button>
-                <button class="mbtn del" data-pact="del" title="Удалить">🗑</button>
+              <div class="member-load">
+                <div class="member-load-top"><span>Прогресс</span><span>${pct}%</span></div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
               </div>
             </div>`;
         }).join('')}</div>`
       : `<div class="empty-state"><div class="big">👥</div>Команда пуста — добавьте участника в форме выше</div>`}`;
-  document.getElementById('team-admin').onclick = () => { if (requireAdmin()) openAdminModal(); };
   document.getElementById('team-add').onsubmit = (e) => {
     e.preventDefault();
     const name = document.getElementById('team-name').value.trim();
     if (!name) return;
-    const pass = document.getElementById('team-pass').value.trim();
-    const person = { id: uid(), name, color: PALETTE[people.length % PALETTE.length] };
-    if (pass) person.passHash = hashStr(pass);
-    people.push(person);
+    people.push({ id: uid(), name, color: PALETTE[people.length % PALETTE.length] });
     logEvent(`Добавлен участник ${name}`);
     save();
     renderTeam();
@@ -1053,9 +1040,8 @@ function renderPeopleModal() {
     return `<div class="person-row" data-id="${p.id}" draggable="true">
       <span class="pr-drag" title="Перетащите, чтобы поменять порядок">⠿</span>
       ${avatarHtml(p)}
-      <span class="pr-name">${escapeHtml(p.name)}${p.passHash ? ' <span class="pr-lock" title="Защищён паролем">🔒</span>' : ''}</span>
+      <span class="pr-name">${escapeHtml(p.name)}</span>
       <span class="pr-count">${active} в работе</span>
-      <button data-act="lock" title="${p.passHash ? 'Сменить / снять пароль' : 'Поставить пароль на кабинет'}">${p.passHash ? '🔒' : '🔓'}</button>
       <button data-act="edit" title="Переименовать">✎</button>
       <button class="del" data-act="del" title="Удалить">🗑</button>
     </div>`;
@@ -1072,12 +1058,8 @@ function addPerson(e) {
   e.preventDefault();
   const name = els.personName.value.trim();
   if (!name) return;
-  const pass = els.personPass.value.trim();
-  const person = { id: uid(), name, color: PALETTE[people.length % PALETTE.length] };
-  if (pass) person.passHash = hashStr(pass);
-  people.push(person);
+  people.push({ id: uid(), name, color: PALETTE[people.length % PALETTE.length] });
   els.personName.value = '';
-  els.personPass.value = '';
   logEvent(`Добавлен участник ${name}`);
   save(); renderPeopleModal(); renderModalAssignees();
 }
@@ -1390,8 +1372,7 @@ root.addEventListener('click', (e) => {
   if (pact) {
     e.stopPropagation();
     const mem = pact.closest('.member'); const id = mem.dataset.person; const a = pact.dataset.pact;
-    if (a === 'pass') setPersonPassword(id);
-    else if (a === 'edit') renamePerson(id);
+    if (a === 'edit') renamePerson(id);
     else if (a === 'del') deletePerson(id);
     return;
   }
@@ -1435,11 +1416,9 @@ els.peopleList.addEventListener('click', (e) => {
   const row = btn.closest('.person-row'); if (!row) return;
   if (btn.dataset.act === 'edit') renamePerson(row.dataset.id);
   else if (btn.dataset.act === 'del') deletePerson(row.dataset.id);
-  else if (btn.dataset.act === 'lock') setPersonPassword(row.dataset.id);
 });
 
-// Админ-панель
-document.getElementById('open-admin').addEventListener('click', () => { if (requireAdmin()) { closePeopleModal(); openAdminModal(); } });
+// Админ-панель (пароли убраны; окно оставлено скрытым)
 els.adminClose.addEventListener('click', closeAdminModal);
 document.getElementById('admin-close-x').addEventListener('click', closeAdminModal);
 els.adminModal.addEventListener('click', (e) => { if (e.target === els.adminModal) closeAdminModal(); });
