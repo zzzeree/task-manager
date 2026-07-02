@@ -12,8 +12,8 @@ const STATUS_LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]));
 const PROGRESS = { new: 0, in_progress: 40, paused: 30, review: 75, done: 100 };
 const PRIORITY_LABEL = { low: 'Низкий', medium: 'Средний', high: 'Высокий' };
 const PALETTE = ['#5a63f0', '#7c5cf6', '#18a971', '#e0a312', '#ed5a73', '#3b9af0', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
-const VIEWS = ['dashboard', 'board', 'calendar', 'team'];
-const VIEW_LABEL = { dashboard: 'Дашборд', board: 'Доска', calendar: 'Календарь', team: 'Команда' };
+const VIEWS = ['dashboard', 'board', 'list', 'calendar', 'team'];
+const VIEW_LABEL = { dashboard: 'Дашборд', board: 'Доска', list: 'Список', calendar: 'Календарь', team: 'Команда' };
 const DOW = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
@@ -231,11 +231,21 @@ function relTime(ts) {
 // Офлайн (файл открыт напрямую) — храним в браузере; иначе — на сервере.
 const OFFLINE = location.protocol === 'file:';
 const STORAGE_KEY = 'task-manager-tasks';
+const PERSON_KEY = 'task-manager-personview'; // выбранный кабинет — свой у каждого в браузере
+
+// Восстановить выбранный кабинет из браузера (если такой участник ещё существует)
+function restorePersonView() {
+  try {
+    const saved = localStorage.getItem(PERSON_KEY) || '';
+    personView = (saved && people.some((p) => p.id === saved)) ? saved : '';
+  } catch (e) { personView = ''; }
+}
 
 async function loadData() {
   if (OFFLINE) {
     try { applyData(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')); }
     catch (e) { people = []; tasks = []; history = []; }
+    restorePersonView();
     render();
     startReminders();
     return;
@@ -245,6 +255,7 @@ async function loadData() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     applyData(await res.json());
   } catch (e) { showToast('Не удалось загрузить данные'); people = []; tasks = []; history = []; }
+  restorePersonView();
   render();
   startReminders();
 }
@@ -342,6 +353,7 @@ function render() {
   [...els.nav.children].forEach((b) => b.classList.toggle('is-active', b.dataset.view === view));
   [...els.navMobile.children].forEach((b) => b.classList.toggle('is-active', b.dataset.view === view));
   if (view === 'board') renderBoard();
+  else if (view === 'list') renderList();
   else if (view === 'calendar') renderCalendar();
   else if (view === 'team') renderTeam();
   else renderDashboard();
@@ -361,6 +373,7 @@ function hashStr(s) {
 }
 function setPersonView(id) {
   personView = id || '';
+  try { localStorage.setItem(PERSON_KEY, personView); } catch (e) {}
   render();
   return true;
 }
@@ -734,12 +747,37 @@ function stopAutoScroll() {
 
 // ---------- Список ----------
 function renderList() {
-  const list = filteredTasks({ useStatus: true });
+  const list = filteredTasks({ useStatus: true }).slice().sort((a, b) => {
+    // выполненные — вниз
+    const ad = isDone(a) ? 1 : 0, bd = isDone(b) ? 1 : 0;
+    if (ad !== bd) return ad - bd;
+    // новые — вверх (по дате добавления, свежие первыми)
+    const at = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bt - at;
+  });
+  const rows = list.map((t) => {
+    const st = statusOf(t);
+    const dl = deadlineInfo(t.deadline, isDone(t));
+    const who = taskAssignees(t).map(getPerson).filter(Boolean);
+    const whoHtml = who.length
+      ? `<span class="tl-who">${assigneesStack(t)}<span class="tl-who-names">${escapeHtml(who.map((p) => p.name).join(', '))}</span></span>`
+      : '<span class="tl-none">не назначен</span>';
+    return `<tr data-open="${t.id}"${isDone(t) ? ' class="tl-done"' : ''}>
+      <td class="tl-title"><span class="tc-prio ${t.priority}" title="${PRIORITY_LABEL[t.priority]}"></span>${isProject(t) ? '<span class="tl-proj">Проект</span> ' : ''}${escapeHtml(t.title)}</td>
+      <td><span class="chip-mini chip-status ${st}">${STATUS_LABEL[st]}</span></td>
+      <td>${whoHtml}</td>
+      <td>${dl ? `<span class="chip-mini chip-deadline ${dl.state}">${dl.text}</span>` : '<span class="tl-none">—</span>'}</td>
+    </tr>`;
+  }).join('');
   root.innerHTML = `
-    <div class="view-head"><div class="view-title">Список задач</div><div class="view-sub">${list.length} задач(и)</div></div>
+    <div class="view-head"><div><div class="view-title">Все задачи</div><div class="view-sub">${list.length} задач(и)</div></div></div>
     ${filterbarHtml(true)}
     ${list.length
-      ? `<div class="task-rows">${list.map((t) => taskCardHtml(t, { compact: false })).join('')}</div>`
+      ? `<div class="table-wrap"><table class="task-table">
+          <thead><tr><th>Задача</th><th>Статус</th><th>Кто выполняет</th><th>Дедлайн</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`
       : `<div class="empty-state"><div class="big">🗒️</div>${tasks.length ? 'Ничего не найдено по фильтрам' : 'Задач пока нет — нажмите «＋ Задача»'}</div>`}`;
   wireFilterbar();
 }
@@ -1390,7 +1428,14 @@ els.tCancel.addEventListener('click', closeTaskModal);
 els.taskCloseX = document.getElementById('task-close-x');
 els.taskCloseX.addEventListener('click', closeTaskModal);
 els.tDelete.addEventListener('click', () => { if (editingId && confirm('Удалить задачу?')) { deleteTask(editingId); closeTaskModal(); render(); } });
-els.taskModal.addEventListener('click', (e) => { if (e.target === els.taskModal) closeTaskModal(); });
+// Закрывать окно кликом по тёмному фону — только если клик и НАЧАЛСЯ, и закончился на фоне.
+// Иначе окно закрывается, когда зажал мышь в поле и случайно вывел курсор за край окна.
+function overlayClose(modalEl, closeFn) {
+  let downOnOverlay = false;
+  modalEl.addEventListener('mousedown', (e) => { downOnOverlay = (e.target === modalEl); });
+  modalEl.addEventListener('click', (e) => { if (e.target === modalEl && downOnOverlay) closeFn(); });
+}
+overlayClose(els.taskModal, closeTaskModal);
 els.tAssigneeTrigger.addEventListener('click', (e) => {
   e.stopPropagation();
   const willOpen = els.tAssigneePanel.hidden;
@@ -1410,7 +1455,7 @@ els.tAssigneePanel.addEventListener('click', (e) => {
 els.peopleForm.addEventListener('submit', addPerson);
 els.peopleClose.addEventListener('click', closePeopleModal);
 document.getElementById('people-close-x').addEventListener('click', closePeopleModal);
-els.peopleModal.addEventListener('click', (e) => { if (e.target === els.peopleModal) closePeopleModal(); });
+overlayClose(els.peopleModal, closePeopleModal);
 els.peopleList.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-act]'); if (!btn) return;
   const row = btn.closest('.person-row'); if (!row) return;
@@ -1421,7 +1466,7 @@ els.peopleList.addEventListener('click', (e) => {
 // Админ-панель (пароли убраны; окно оставлено скрытым)
 els.adminClose.addEventListener('click', closeAdminModal);
 document.getElementById('admin-close-x').addEventListener('click', closeAdminModal);
-els.adminModal.addEventListener('click', (e) => { if (e.target === els.adminModal) closeAdminModal(); });
+overlayClose(els.adminModal, closeAdminModal);
 els.adminList.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-act="reset"]'); if (!btn) return;
   const row = btn.closest('.person-row'); if (row) resetPersonPassword(row.dataset.id);
@@ -1464,7 +1509,7 @@ els.mSave.addEventListener('click', saveMeeting);
 els.mCancel.addEventListener('click', closeMeetingModal);
 document.getElementById('m-close-x').addEventListener('click', closeMeetingModal);
 els.mDelete.addEventListener('click', deleteMeeting);
-els.meetingModal.addEventListener('click', (e) => { if (e.target === els.meetingModal) closeMeetingModal(); });
+overlayClose(els.meetingModal, closeMeetingModal);
 els.mAssigneeTrigger.addEventListener('click', (e) => {
   e.stopPropagation();
   const willOpen = els.mAssigneePanel.hidden;
@@ -1492,7 +1537,7 @@ document.getElementById('day-add-task').addEventListener('click', () => {
   closeDayModal();
   openTaskModal(null, d ? { deadline: d + 'T18:00' } : null);
 });
-els.dayModal.addEventListener('click', (e) => { if (e.target === els.dayModal) closeDayModal(); });
+overlayClose(els.dayModal, closeDayModal);
 
 document.addEventListener('click', closeMsPanel);
 document.addEventListener('keydown', (e) => {
